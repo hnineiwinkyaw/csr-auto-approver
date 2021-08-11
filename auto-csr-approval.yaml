@@ -69,4 +69,4 @@ spec:
       containers:
         - name: approver
           image: hnineiwinkyaw96/csr-approver:1.0.0
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
