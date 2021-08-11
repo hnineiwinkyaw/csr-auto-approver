@@ -72,14 +72,22 @@ func main() {
 		    fmt.Println(csrObj.Name)
 		    fmt.Printf("%+v\n",csrObj.Status.Conditions)
 
-		    csrObj.Status.Conditions = append(csrObj.Status.Conditions, certificate.CertificateSigningRequestCondition{
-				Type:			certificate.CertificateApproved,
-				Reason: 		"handle by csr auto approver",
-				Message:		"This CSR was approved by csr-approver-app",
-				LastUpdateTime: metav1.Now(),
-			})
-		    fmt.Printf("%+v\n", csrObj.Status.Conditions)
-		   
+		    if len(csrObj.Status.Conditions) > 0 && csrObj.Status.Conditions[0].Type == certificate.CertificateApproved {
+		    	fmt.Printf("Already approved")
+		    } else {
+		    	csrObj.Status.Conditions = append(csrObj.Status.Conditions, certificate.CertificateSigningRequestCondition{
+					Type:			certificate.CertificateApproved,
+					Reason: 		"handle by csr auto approver",
+					Message:		"This CSR was approved by csr-approver-app",
+					LastUpdateTime: metav1.Now(),
+				})
+
+			    fmt.Printf("%+v\n", csrObj.Status.Conditions)
+
+			    clientset.CertificatesV1beta1().CertificateSigningRequests().UpdateApproval(context.TODO(),&csrObj,metav1.UpdateOptions{})
+		    }
+		    
+		    fmt.Printf("\n\n\n\n")
 		}
 		
 		// FIXME: only working in the default namespace
@@ -87,6 +95,6 @@ func main() {
 
 		// log.Fatalln(approveCsrs(csr, pod))
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(50 * time.Second)
 	}
 }
