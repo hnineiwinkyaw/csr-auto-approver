@@ -68,7 +68,7 @@ func extractCSRStatus(csr *certificate.CertificateSigningRequest) (string, error
 func doesCnResolvesIpAddr(commonName string, pods *core.PodList) bool {
 
 	if  !strings.HasSuffix(commonName, ".pod.cluster.local") {
-		fmt.Println("No Suffix with pod.cluster.local")
+		fmt.Println("No Suffix with pod.cluster.local\n")
 		return false
 	}
 
@@ -77,15 +77,15 @@ func doesCnResolvesIpAddr(commonName string, pods *core.PodList) bool {
 	fmt.Printf("Pod IP and namespace : %s \n", podIpPlusNs)
 
 	for _, pod := range pods.Items {
-		
-		fmt.Println("Filtering by namespace\n")
-
 		if  strings.HasSuffix(podIpPlusNs, pod.Namespace) {
 			fmt.Printf("Pod found with ns : %s, getting pod ip ... \n", pod.Namespace)
 			podIp := strings.Split(podIpPlusNs,"."+pod.Namespace)
 			fmt.Printf("Pod IP : %s \n", podIp[0])
+			fmt.Printf("Replacing dash with dot in IP ... \n")
+			formattedIp := strings.Replace(podIp[0], "-", ".", -1)
+			fmt.Printf("Formatted IP : %s \n", formattedIp)
 			fmt.Printf("Filtering actual pod by certificate ca podIp ... \n")
-			if podIp[0] == pod.Status.PodIP {
+			if formattedIp == pod.Status.PodIP {
 				fmt.Printf("Found Pod : %s in namespace %s" , pod.Name, pod.Namespace)
 				return true;
 			}
@@ -134,7 +134,7 @@ func main() {
 		}
 
 		
-		fmt.Printf("There are %d csr in the cluster\n", len(csrs.Items))
+		fmt.Printf("There are %d csr in the cluster\n\n", len(csrs.Items))
 
 		//get pods in all namespaces
 		pods, err := clientset.CoreV1().Pods("").List(context.TODO(),metav1.ListOptions{})
@@ -157,12 +157,12 @@ func main() {
 
 		    	commonName := getCertificateCommonName(&csrObj)
 
-				fmt.Printf("Common Name is %s \n", commonName)
+				fmt.Printf("Common Name is %s \n Validating CN resolves Pod Ip ... \n", commonName)
 
 			    validPod := doesCnResolvesIpAddr(commonName, pods)			
 
 			    if validPod {
-			    	fmt.Printf("Approving Certificate ... \n")
+			    	fmt.Printf("\nApproving Certificate ... \n")
 			    	csrObj.Status.Conditions = append(csrObj.Status.Conditions, certificate.CertificateSigningRequestCondition{
 						Type:			certificate.CertificateApproved,
 						Reason: 		"handled by csr auto approver",
@@ -171,13 +171,18 @@ func main() {
 					})
 
 					clientset.CertificatesV1beta1().CertificateSigningRequests().UpdateApproval(context.TODO(),&csrObj,metav1.UpdateOptions{})
+			    } else {
+			    	fmt.Printf("Common Name does not resolve . Not Approving certificate. \n")
 			    }
 		    	
+		    } else {
+		    	fmt.Println("Certificate status is not in PENDING status .\n")
 		    }
+		    fmt.Println("Checking Next Certificate \n\n")
 		}
 		
-		fmt.Printf("Sleeping for 10 second ... \n\n")
+		fmt.Printf("Sleeping for 15 second ... \n\n")
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(15 * time.Second)
 	}
 }
