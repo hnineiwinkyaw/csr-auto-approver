@@ -1,0 +1,95 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: csr-creator
+  resourceVersion: "4271"
+  uid: 9cea2307-b316-4509-a33e-fc1c7d056b88
+rules:
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: create-csr
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: csr-creator
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tls-app
+  labels:
+    app: tls-app
+spec:
+  selector:
+    matchLabels:
+      app: tls-app
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: tls-app
+    spec:
+      initContainers:
+        - name: certificate-init-container
+          image: proofpoint/certificate-init-container:v0.9.0
+          imagePullPolicy: Always
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          args:
+            - "-dns-names=$(POD_IP).$(NAMESPACE).pod.cluster.local"
+            - "-cert-dir=/etc/tls"
+            - "-namespace=$(NAMESPACE)"
+            - "-pod-name=$(POD_NAME)"
+            - "-ips=$(POD_IP)"
+            - "-service-names=tls-app"            
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/tls
+      containers:
+        - name: tls-app
+          image: gcr.io/hightowerlabs/tls-app:1.0.0
+          imagePullPolicy: Always
+          args:
+            - "-tls-cert=/etc/tls/tls.crt"
+            - "-tls-key=/etc/tls/tls.key"
+          ports:
+            - containerPort: 443 
+          resources:
+            limits:
+              memory: "50Mi"
+              cpu: "100m"
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/tls
+      volumes:
+        - name: tls
+          emptyDir: {}
